@@ -19,9 +19,9 @@ class WalkerServiceController
         $this->tui = new Tui();
     }
 
-    public function getPage(){
-
-
-
-    }
+//    public function getPage(){
+//
+//
+//
+//    }
 }

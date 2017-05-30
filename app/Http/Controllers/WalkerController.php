@@ -9,7 +9,8 @@ class WalkerController extends Controller
 {
     public function tui(WalkerServiceController $walkerService){
 
-        $walkerService->tui->getPage();
+//        $walkerService->tui->getData();
+        $walkerService->tui->getOfferItem();
 
         return view('walker.index',['siteName'=>'tui']);
     }
