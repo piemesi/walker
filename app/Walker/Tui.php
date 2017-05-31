@@ -288,8 +288,8 @@ class Tui extends Walker implements IWalker
 
                     // $h4N = 0;
                     foreach ($li->getElementsByTagName('h4') as $h4) {
-                        $tabs[$liN]['val']['header'] = $h4->nodeValue; //[$h4N]
-
+                        $tabs[$liN]['val']['header']         = $h4->nodeValue; //[$h4N]
+                        $notProcessedHeaders[$h4->nodeValue] = $h4->nodeValue;
 
                         // $h4N++;
                     }
@@ -319,49 +319,53 @@ class Tui extends Walker implements IWalker
                     rsort($roomsVars);
                     $hotelData['suggest_roomsNum'] = $roomsVars[0];
                 }
+                unset($notProcessedHeaders[$tab['val']['header']]);
 
             }
 
             if (stripos($tab['val']['header'], 'рестораны') > -1 || stripos($tab['val']['header'], 'бары') > -1) {
                 $this->NextRowRegexpPattern($tab['val']['body'], 'suggest_restaurants', $hotelData);
-//                preg_match_all('/([^\n]*)\n/i', $tab['val']['body'], $matches);
-//
-//
-//
-//                if (isset($matches[1])) {
-//                    foreach ($matches[1] as $restik)
-//                    {
-//                        preg_match('/([^\(]+)(\(([^\)]*)\))?/', $restik, $restDesc);
-//                        $restikInfo = null;
-//                        if (isset($restDesc[1])) {
-//                            $restikName = $restDesc[1];
-//                            $restikInfo = $restDesc[3] ?? null;
-//
-//                        }else{
-//                            $restikName = $restik;
-//
-//                        }
-//
-//                        $hotelData['suggest_restaurants'][] = [
-//                            'name'=>substr($restikName, 0, 1) == '-' ? substr($restikName, 1) : $restikName,
-//                            'info' => $restikInfo,
-//                        ];
-//
-//                    }
-//                 }
-
+                unset($notProcessedHeaders[$tab['val']['header']]);
 
             }
 
             if ($tab['val']['header'] == 'В номере') {
 
                 $this->NextRowRegexpPattern($tab['val']['body'], 'suggest_in_rooms', $hotelData);
+                unset($notProcessedHeaders[$tab['val']['header']]);
+            }
 
+            if ($tab['val']['header'] == 'Территория') {
+
+                $this->NextRowRegexpPattern($tab['val']['body'], 'suggest_territory', $hotelData);
+                unset($notProcessedHeaders[$tab['val']['header']]);
+            }
+
+            if ($tab['val']['header'] == 'Развлечения и спорт') {
+
+                $this->NextRowRegexpPattern($tab['val']['body'], 'suggest_sport_animation', $hotelData);
+                unset($notProcessedHeaders[$tab['val']['header']]);
+            }
+
+            if ($tab['val']['header'] == 'Для детей') {
+
+                $this->NextRowRegexpPattern($tab['val']['body'], 'suggest_for_children', $hotelData);
+                unset($notProcessedHeaders[$tab['val']['header']]);
+            }
+
+            if ($tab['val']['header'] == 'Питание') {
+
+                $this->NextRowRegexpPattern($tab['val']['body'], 'suggest_meal_info', $hotelData);
+                unset($notProcessedHeaders[$tab['val']['header']]);
             }
         }
 
         print_r("<pre>");
         print_r($hotelData);
+        print_r("</pre>");
+
+        print_r("<pre>");
+        print_r($notProcessedHeaders);
         print_r("</pre>");
 
 
@@ -528,28 +532,80 @@ class Tui extends Walker implements IWalker
 //        print_r('-------ssss');
         preg_match_all('/([^\n]*)\n/i', $data, $matches);
 
+        $isNextPaid = null;
 
         if (isset($matches[1])) {
             foreach ($matches[1] as $restik) {
                 preg_match('/([^\(]+)(\(([^\)]*)\))?/', $restik, $restDesc);
                 $restikInfo = null;
+                $addItional = [];
                 if (isset($restDesc[1])) {
                     $restikName = trim($restDesc[1]);
-                    $restikInfo = $restDesc[3] ?? null;
+
+                    if (isset($restDesc[3])) {
+                        $restikInfo = $restDesc[3];
+                        preg_match('/\W?(платно|бесплатно)/iu', $restikInfo, $isPaidInfo);
+                        if (isset($isPaidInfo[1])) {
+                            if (strtolower($isPaidInfo[1]) == 'платно') {
+                                $addItional['isPaid'] = 1;
+                            } else {
+                                $addItional['isForFree'] = 1;
+                            }
+                        }
+                    }
+
 
                 } else {
                     $restikName = trim($restik);
 
                 }
 
+
                 if (!empty($restikName)) {
-//                    $restikName = preg_replace('/-/','444',$restikName);
                     $restikName = preg_replace('/^[\S]{0,3}-/', '', $restikName);
 
-                    $hotelData[$key][] = [
-                        'name' => $restikName,
-                        'info' => $restikInfo,
-                    ];
+//                    preg_match('/^\s?(\d+)\s(.*)/iu',$restikName, $originNumArr);
+//                    print_r('<br>-------->>>');
+//                    print_r($originNumArr);
+                    if (isset($originNumArr[1]) && isset($originNumArr[2])) {
+
+//                        $getMorpherResp = $this->client->request('GET', 'https://ws3.morpher.ru/russian/declension?format=json&s='.$originNumArr[2], []);
+
+//$respJsonD = json_decode($getMorpherResp->getBody()->getContents(), true);
+
+//                        print_r($respJsonD['множественное']);
+
+
+                        $addItional['origin_title'] = $restikName;
+                        $addItional['seems_amount'] = $originNumArr[1];
+                        $restikName                 = $originNumArr[2];
+                    }
+
+                    $data = ['title' => $restikName, 'info' => $restikInfo];
+
+                    if (count($addItional)) {
+                        $data = array_merge($data, $addItional);
+                    }
+
+                    if (!is_null($isNextPaid)) {
+                        $data['seems_paid_free'] = $isNextPaid;
+                    }
+                    $hotelData[$key][] = $data;
+                }
+
+                preg_match('/(платно|бесплатно)\s?\:(.*)/iu', $restikName, $isNextPaidArr);
+                if (isset($isNextPaidArr[1])) {
+                    $isNextPaid                                                         = (strtolower($isNextPaidArr[1]) == 'платно') ? -1 : 1;
+                    $hotelData[$key][count($hotelData[$key]) - 1]['seems_proper_title'] = str_replace($isNextPaidArr[0], '', $restikName);
+
+                    if(isset($isNextPaidArr[2]) && !empty($isNextPaidArr[2])) {
+                        $dataNote = ['title' => $isNextPaidArr[2], 'info' => '', 'seems_note'=> 1];
+                        if (!is_null($isNextPaid)) {
+                            $dataNote['seems_paid_free'] = $isNextPaid;
+                        }
+                        $hotelData[$key][] = $dataNote;
+
+                    }
                 }
 
             }

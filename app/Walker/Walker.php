@@ -4,8 +4,16 @@
 namespace App\Walker;
 
 
+use GuzzleHttp\Client;
+
 class Walker
 {
+    protected $client;
+
+    function __construct()
+    {
+        $this->client = new Client(['base_uri' => static::WEB_URL]);
+    }
 
     protected function loadHtmlOfDomDocument(string $html)
     {
